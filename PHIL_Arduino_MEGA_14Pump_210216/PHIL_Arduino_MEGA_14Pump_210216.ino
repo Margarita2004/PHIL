@@ -1,5 +1,12 @@
-#include <AccelStepper.h>
-#include <MultiStepper.h>
+// This code:
+// Parse external commands (via Serial)
+// Control motion of multiple axes
+// Coordinate complex movement (multi-axis)
+// Provide homing/calibration via limit switches
+
+
+#include <AccelStepper.h> //advanced stepper motor control
+#include <MultiStepper.h> // coordinated movement of multiple stepper motors simultaneously
 
 int myMICROS = 1;
 char Sttngs[][3] = {
@@ -14,14 +21,20 @@ char Sttngs[][3] = {
 int MICROoptions[] = {1, 2, 4, 8, 16, 32};
 
 //Stepper  L R Z1 Z2 V P1 P2 P3 P4 P5  P6  P7  P8  P9
+// Enable
 int enaPINS[] = {69,  64,  61,  58,  44,  41,  38,  35,  32,  29,  26,  11,  8, 5};
+// Direction
 int dirPINS[] = {67,  66,  63,  60,  46,  43,  40,  37,  34,  31,  28,  25,  10,  7};
+// Control Pins
 int stpPINS[] = {68,  65,  62,  59,  45,  42,  39,  36,  33,  30,  27,  12,  9, 6};
+// Microstepping Control Pins
 int M1[] = {51,  51,  55,  55,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24};
 int M2[] = {52,  52,  56,  56,  23,  23,  23,  23,  23,  23,  23,  23,  23,  23};
 int M3[] = {53,  53,  57,  57,  22,  22,  22,  22,  22,  22,  22,  22,  22,  22};
+// Limit Switches
 int limPins[] = {50,  49,  48,  47};
 
+// Each motor gets its own AccelStepper instance using the appropriate pins.
 AccelStepper stepperL(1, stpPINS[0], dirPINS[0]);
 AccelStepper stepperR(1, stpPINS[1], dirPINS[1]);
 AccelStepper stepperZ1(1, stpPINS[2], dirPINS[2]);
@@ -42,6 +55,9 @@ int limitSwitchR = limPins[1]; // Target Limit Switch R
 int limitSwitchZ1 = limPins[2]; // Target Limit Switch Z
 int limitSwitchZ2 = limPins[3]; // Target Limit Switch Z
 
+// Store serial command data
+// Likely used to receive movement commands in the loop(). 
+// Probably expects a formatted command string with motor positions or instruction.
 String readString; //main captured String
 String Comm;
 String Lstr;
@@ -59,6 +75,7 @@ String str7;
 String str8;
 String str9;
 
+// Store parsed numeric values for movement
 long Lint;
 long Rint;
 long Z1int;
@@ -74,6 +91,7 @@ long int7;
 long int8;
 long int9;
 
+// Hold positions of delimiters in a command string for parsing
 int ind0;
 int indL;
 int indR;
@@ -93,6 +111,8 @@ int ind9;
 int MAXspd = 6400;
 int MAXaccl = 6400;
 
+// This function initializes 1.Limit switch pins with pullups 2.Motor pins as output
+// 3.Default motor speed and acceleration 4.Serial communication
 void setup() {
   // put your setup code here, to run once:
   pinMode(limitSwitchL, INPUT_PULLUP);
@@ -133,6 +153,7 @@ void setup() {
   stepper8.setAcceleration(MAXaccl * myMICROS);
   stepper9.setAcceleration(MAXaccl * myMICROS);
 
+// sets all microstepping pins (M1, M2, M3) to HIGH (likely 1/16 or 1/32 step)
   for (int i = 0; i <= 13; i++) {
     pinMode(enaPINS[i], OUTPUT);
     digitalWrite(enaPINS[i], HIGH);
@@ -149,6 +170,9 @@ void setup() {
   Serial.println("E+0+0+0+0+0+0+0+0+0+0+0+0+0+0*"); // so I can keep track of what is loaded
 }
 
+// Moves selected motors to target positions
+// 1.Resets current positions 2.Adds non-zero motors to a MultiStepper group
+// 3.Creates a positions[] array with targets 4.Executes the synchronized movement
 void MOVE(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, long int2, long int3, long int4, long int5, long int6, long int7, long int8, long int9) {
   Serial.println("Here0");
   stepperL.setCurrentPosition(0);
@@ -286,6 +310,7 @@ void MOVE(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, lo
   Serial.println("MDONE");
 }
 
+// Enables only the motors that need to move by setting enaPINS[i] to LOW
 void ENABLE(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, long int2, long int3, long int4, long int5, long int6, long int7, long int8, long int9) {
   int nbls[] = {Lint, Rint, Z1int, Z2int, Vint, int1, int2, int3, int4, int5, int6, int7, int8, int9};
   for (int i = 0; i <= 13; i++) {
@@ -301,6 +326,7 @@ void ENABLE(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, 
   Serial.println("EDONE");
 }
 
+// Sets max speed for each motor independently
 void SPEED(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, long int2, long int3, long int4, long int5, long int6, long int7, long int8, long int9) {
   stepperL.setMaxSpeed(Lint);
   stepperR.setMaxSpeed(Rint);
@@ -318,6 +344,7 @@ void SPEED(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, l
   stepper9.setMaxSpeed(int9);
 }
 
+// Sets acceleration per motor
 void ACCELERATION(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, long int2, long int3, long int4, long int5, long int6, long int7, long int8, long int9) {
   stepperL.setAcceleration(Lint);
   stepperR.setAcceleration(Rint);
@@ -335,6 +362,9 @@ void ACCELERATION(long Lint, long Rint, long Z1int, long Z2int, long Vint, long 
   stepper9.setAcceleration(int9);
 }
 
+// Homes specific motors until their corresponding limit switch is triggered:
+// Movement is allowed only until the limit switch returns LOW (active).
+// The homing routine uses blocking while loops and checks distanceToGo() and the limit switch state.
 void HOME(long Lint, long Rint, long Z1int, long Z2int, long Vint, long int1, long int2, long int3, long int4, long int5, long int6, long int7, long int8, long int9) {
     stepperL.setMaxSpeed(MAXspd * myMICROS);
   stepperR.setMaxSpeed(MAXspd * myMICROS);
